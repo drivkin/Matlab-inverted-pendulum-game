@@ -1,0 +1,137 @@
+clear all
+close all
+
+framerate=60;
+
+M = 1;
+global m 
+m=.1;
+b = 0.1;
+I = 0.006;
+global g 
+g=9.8;
+l = 0.3; 
+global sensitivity
+sensitivity=1;
+
+while(1)
+pendGameSetup(num2str(g),num2str(m),num2str(sensitivity));
+
+p = I*(M+m)+M*m*l^2; %denominator for the A and B matrices
+
+A = [0      1              0           0;
+     0 -(I+m*l^2)*b/p  (m^2*g*l^2)/p   0;
+     0      0              0           1;
+     0 -(m*l*b)/p       m*g*l*(M+m)/p  0];
+B = [     0;
+     (I+m*l^2)/p;
+          0;
+        m*l/p];
+C = [1 0 0 0;
+     0 0 1 0];
+D = [0;
+     0];
+
+states = {'x' 'x_dot' 'phi' 'phi_dot'};
+inputs = {'u'};
+outputs = {'x'; 'phi'};
+
+sys_ss = ss(A,B,C,D,'statename',states,'inputname',inputs,'outputname',outputs);
+dsys=c2d(sys_ss, round(1/framerate*1000)/1000);
+
+%generate intial set of random snowflakes
+%there are 50 flakes that repeat every 10 numbers
+%each flake gets two random numbers: its starting position and its starting
+%height
+
+flakenum=10;
+flakeper=3;
+ceiling=1;
+
+flks=rand(flakenum,3);
+flks(:,1)=flks(:,1)-.5;
+flks(:,1)=flks(:,1)*flakeper;
+flks(:,2)=flks(:,2)*ceiling;
+flks(:,3)=0; %marks if flake is blue or red
+
+
+
+figh=figure;
+clf(figh);
+set(figh,'KeyPressFcn',@(fig_obj, eventDat) set_key(figh,eventDat))
+set(figh,'KeyReleaseFcn',@(fig_obs,eventDat) remove_key(figh,eventDat))
+
+prox=.01;
+flkspeed=.001;
+snowflakes_killed=0;
+
+%framerate setting
+stat=[];
+ff=0;
+tic
+while(1)
+    pause(1/framerate)
+    %update position
+    [stat ff]=one_step_pend(dsys,stat,ff);
+    x=stat(1)-l*sin(stat(3));
+    y=l*cos(stat(3));
+    
+    if(abs(stat(3))>pi/2)
+        ResultsGUI(toc,snowflakes_killed,'YOU FELL!');
+        break
+    end
+    %update the position of each flake
+    flks(:,2)=flks(:,2)-flkspeed;
+    %now check for flakes that have hit the ground, kill them, then make
+    %new ones
+    gflks=find(flks(:,2)<0);
+    flks(gflks,1)=(rand(length(gflks),1)-.5)*flakeper;
+    flks(gflks,2)=ceiling;
+    flks(gflks,3)=0;
+    
+    %now make sflks, which is flks shifted to the region of the pendulum
+    
+    sflks=flks;
+    sflks(:,1)=flks(:,1)+flakeper*round(stat(1)/flakeper);
+    
+    %find which of the flakes are close to the head of the pend, kill, make
+    %new, also increase kill count
+    
+    cls=find(((sflks(:,1)-x).^2+(sflks(:,2)-y).^2)<prox);
+    if(length(cls))
+        snowflakes_killed=snowflakes_killed+length(cls)
+    end
+%     flks(cls,1)=(rand(length(cls),1)-.5)*flakeper;
+%     flks(cls,2)=ceiling;
+     flks(cls,3)=1;
+    
+    
+    %shift again
+    sflks=flks;
+    sflks(:,1)=flks(:,1)+flakeper*round(stat(1)/flakeper);
+    
+
+
+    hold off;
+    scatter(x,y,'r')
+    hold on;
+    plot([stat(1) x], [0 y])
+    plot([stat(1) stat(1)+ff/10],[0 0],'g->')
+    
+    % scatter plot flakes but with wrap around of 1000
+    lflks=find(flks(:,3)== 0);
+    scatter(sflks(lflks,1), sflks(lflks,2),'b')
+    dflks=find(flks(:,3)==1);
+    scatter(sflks(dflks,1), sflks(dflks,2),'rd')
+    axis([-.6+stat(1) .6+stat(1) -.2 ceiling])
+    
+%     if (length(dflks)== flakenum)
+%         %a win!
+%         ResultsGUI(toc,snowflakes_killed,'YOU WIN!');
+%         break
+%     end
+    shg
+   % xlabel(['flakes killed: ' int2str(snowflakes_killed)]);
+end
+end
+    

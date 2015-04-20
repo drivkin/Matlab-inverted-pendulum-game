@@ -1,0 +1,22 @@
+function [  ] = move_dot( figh,event_dat )
+%UNTITLED3 Summary of this function goes here
+%   Detailed explanation goes here
+
+persistent x y
+
+if (isempty(x))
+    x=100;
+    y=100;
+end
+
+x
+
+
+
+
+event_dat.Modifi
+
+
+
+end
+
